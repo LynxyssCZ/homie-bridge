@@ -20,10 +20,10 @@ class HomieDevice {
 	}
 
 	handleMessage (topic, message) {
-		switch (topic) {
-			default:
-				this.logger.info({payload: {topic, message}})
-				break;
+		if (topic.startsWith(this.baseTopic) && topic.endsWith('/set')) {
+			const [nodeId, property] = topic.replace(this.baseTopic + '/', '').replace('/set', '').split('/')
+			const node = this.getNode(nodeId)
+			if (node) node.handlePropertySet(property, message)
 		}
 	}
 
@@ -32,28 +32,33 @@ class HomieDevice {
 	}
 
 	async onConnected () {
-		await this.publish('$homie', '4')
-		await this.publish('$name', this.name)
-		await this.publish('$state', 'ready')
-		await this.publish('$extensions', '')
-		await this.setupNodes()
+		await this.sendDeviceInfo()
+		await this.sendNodes()
+		await this.mqttClient.subscribe(`${this.baseTopic}/+/+/set`)
 	}
 
 	async setup () {
 		this.mqttClient.on('reconnect', () => this.onConnected().catch(() => {}))
+		this.mqttClient.on('message', this.handleMessage.bind(this))
 		if (this.mqttClient.connected) {
 			await this.onConnected()
 		} else {
-			this.mqttClient.ocen('connect', () => this.onConnected().catch(() => {}))
+			this.mqttClient.once('connect', () => this.onConnected().catch(() => {}))
 		}
-		
 	}
 
-	async setupNodes () {
+	async sendDeviceInfo () {
+		await this.publish('$homie', '4')
+		await this.publish('$name', this.name)
+		await this.publish('$state', 'ready')
+		await this.publish('$extensions', '')
+		for (const node of this.nodes.values()) await node.setup()
+	}
+
+	async sendNodes () {
 		const nodes = []
 		for (const [nodeId, node] of this.nodes.entries()) {
-			await node.setup()
-			nodes.push(nodeId)
+			nodes.push(`${nodeId}${node.isRange ? '[]' : ''}`)
 		}
 		await this.publish('$nodes', nodes.join(','))
 	}

@@ -7,24 +7,25 @@ class DeviceNode {
 		this.properties = new Map()
 
 		for (const [id, property] of Object.entries(properties)) this.addProperty(id, property)
-
-		this.handleMessage = this.handleMessage.bind(this)
 	}
 
 	addProperty (id, attributes) {
 		this.properties.set(id, attributes)
 	}
 
-	handleMessage (topic, message) {
-		
+	handlePropertySet (propertyId, message) {
+		const property = this.properties.get(propertyId)
+		if (property && property.onSet) property.onSet(message)
 	}
 
 	async setPropertyValue (id, value) {
+		const property = this.properties.get(id)
+
 		this.properties.set(id, {
-			...this.properties.get(id),
+			...property,
 			value,
 		})
-		await this.publish(`${id}`, value)
+		await this.publish(`${id}`, value, property.retained !== false)
 	}
 
 	async setup () {
@@ -40,8 +41,8 @@ class DeviceNode {
 				},
 				this.publish(`${id}/$name`, property.name),
 				this.publish(`${id}/$datatype`, property.datatype),
-				this.publish(`${id}/$settable`, property.settable || 'false'),
-				this.publish(`${id}/$retained`, property.retained || 'true'),
+				this.publish(`${id}/$settable`, String(!!property.onSet)),
+				this.publish(`${id}/$retained`, String(property.retained !== false)),
 			])
 
 			properties.push(id)

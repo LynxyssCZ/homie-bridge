@@ -1,7 +1,7 @@
 {
-  "name": "homepoint-gap-mqtt-bridge",
+  "name": "homie-bridge",
   "version": "1.0.0",
-  "description": "Xiaomi GAP brodge to MQTT",
+  "description": "Homie Sensor Bridge",
   "main": "index.js",
   "engines": {
     "node": "^8.16.0",

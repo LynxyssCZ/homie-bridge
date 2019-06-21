@@ -1,7 +1,7 @@
 const MQTTClient = require('./MqttClient')
 const SensorParser = require('./SensorParser')
 const SensorReader = require('./SensorReader')
-const HomieClient = require('./HomieClient')
+const HomieAdapter = require('./HomieAdapter')
 
 class Bridge {
 	constructor (config, settingsStore, logger) {
@@ -15,14 +15,14 @@ class Bridge {
 
 		this.parser = new SensorParser(config, logger)
 		this.mqttClient = new MQTTClient(config, logger)
-		this.homieClient = new HomieClient(config, logger, this.mqttClient)
+		this.homieAdapter = new HomieAdapter(config, logger, this.mqttClient)
 	}
 
 	async onSensorMessage (message) {
 		const data = await this.parser.parse(message)
 		if (data) {
 			try {
-				await this.homieClient.handleSensorData(data)
+				await this.homieAdapter.handleSensorData(data)
 			}
 			catch (e) {
 				this.logger.error({
@@ -35,15 +35,14 @@ class Bridge {
 	}
 
 	async init () {
-		await this.mqttClient.init()
-		await this.homieClient.init(this.settingsStore.get('homieSensors'))
+		await this.homieAdapter.init(this.settingsStore.get('homieSensors'))
 		await this.reader.init()
 		await this.parser.init()
 	}
 
 	async start () {
 		await this.mqttClient.start()
-		await this.homieClient.start()
+		await this.homieAdapter.start()
 		await this.reader.start()
 	}
 

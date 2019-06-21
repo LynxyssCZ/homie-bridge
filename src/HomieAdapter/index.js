@@ -7,6 +7,7 @@ class HomieAdapter {
 		this.config = config
 		this.logger = logger
 		this.mqttClient = mqttClient
+		this.isScanning = false
 		this.device = new HomieDevice(this.mqttClient, config.homie.baseTopic, config.homie.id, config.homie.name)
 	}
 
@@ -15,14 +16,21 @@ class HomieAdapter {
 			'scanning': {
 				name: 'Is Scanning',
 				datatype: 'boolean',
-				settable: 'true',
-				value: 'false',
+				value: String(this.isScanning),
+				onSet: this.onSetScanning.bind(this),
 			},
 			'discovered': {
-				name: 'Discovered devices',
+				name: 'Discovered sensors',
 				datatype: 'string',
 				value: '',
+				retained: false,
 			},
+			'sensors': {
+				name: 'Configured sensors',
+				datatype: 'string',
+				value: '',
+				onSet: this.onSetSensors.bind(this),
+			}
 		})
 
 		this.addSensors(sensors)
@@ -37,13 +45,23 @@ class HomieAdapter {
 		}
 	}
 
+	onSetScanning (value) {
+		this.isScanning = value.toString() === 'true'
+		this.device.getNode('bridge').setPropertyValue('scanning', String(this.isScanning)).catch(() => {})
+	}
+
+	onSetSensors () {}
+
 	async handleSensorData (data) {
 		if (sensorUpdateConvertors[data.type]) {
 			const {nodeId, updates} = sensorUpdateConvertors[data.type](data)
 			const node = this.device.getNode(nodeId)
-			for (const {property, value} of updates) {
-				await node.setPropertyValue(property, value)
+			if (node) {
+				for (const {property, value} of updates) {
+					await node.setPropertyValue(property, value)
+				}
 			}
+			if (this.isScanning) this.device.getNode('bridge').setPropertyValue('discovered', JSON.stringify(data))
 		}
 	}
 
