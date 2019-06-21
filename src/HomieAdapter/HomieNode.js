@@ -7,10 +7,16 @@ class DeviceNode {
 		this.properties = new Map()
 
 		for (const [id, property] of Object.entries(properties)) this.addProperty(id, property)
+
+		this.handleMessage = this.handleMessage.bind(this)
 	}
 
 	addProperty (id, attributes) {
 		this.properties.set(id, attributes)
+	}
+
+	handleMessage (topic, message) {
+		
 	}
 
 	async setPropertyValue (id, value) {

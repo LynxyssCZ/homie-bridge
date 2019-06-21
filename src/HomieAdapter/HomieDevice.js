@@ -1,4 +1,4 @@
-const DeviceNode = require('./DeviceNode')
+const HomieNode = require('./HomieNode')
 
 class HomieDevice {
 	constructor (mqttClient, baseTopic, id, name) {
@@ -10,7 +10,7 @@ class HomieDevice {
 	}
 
 	addNode (id, name, type, properties) {
-		const node = new DeviceNode(this.mqttClient, this.baseTopic, id, name, type, properties)
+		const node = new HomieNode(this.mqttClient, this.baseTopic, id, name, type, properties)
 		this.nodes.set(id, node)
 		return node
 	}
@@ -31,12 +31,22 @@ class HomieDevice {
 		await this.setup()
 	}
 
-	async setup () {
+	async onConnected () {
 		await this.publish('$homie', '4')
 		await this.publish('$name', this.name)
 		await this.publish('$state', 'ready')
 		await this.publish('$extensions', '')
 		await this.setupNodes()
+	}
+
+	async setup () {
+		this.mqttClient.on('reconnect', () => this.onConnected().catch(() => {}))
+		if (this.mqttClient.connected) {
+			await this.onConnected()
+		} else {
+			this.mqttClient.ocen('connect', () => this.onConnected().catch(() => {}))
+		}
+		
 	}
 
 	async setupNodes () {

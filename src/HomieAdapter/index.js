@@ -1,13 +1,13 @@
-const Device = require('./Device')
+const HomieDevice = require('./HomieDevice')
 const sensorNodeTemplates = require('./SensorNodeTemplates')
 const sensorUpdateConvertors = require('./SensorUpdateConvertors')
 
-class HomieClient {
+class HomieAdapter {
 	constructor (config, logger, mqttClient) {
 		this.config = config
 		this.logger = logger
 		this.mqttClient = mqttClient
-		this.device = new Device(this.mqttClient, config.homie.baseTopic, config.homie.id, config.homie.name)
+		this.device = new HomieDevice(this.mqttClient, config.homie.baseTopic, config.homie.id, config.homie.name)
 	}
 
 	async init (sensors) {
@@ -56,4 +56,4 @@ class HomieClient {
 	}
 }
 
-module.exports = HomieClient
+module.exports = HomieAdapter
