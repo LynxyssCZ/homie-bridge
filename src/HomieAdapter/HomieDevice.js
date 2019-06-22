@@ -1,18 +1,54 @@
 const HomieNode = require('./HomieNode')
 
+const DEFAULT_FLUSH_INTERVAL = 5 * 1000
+
+class FlushTimer {
+	constructor (interval, handler) {
+		this.interval = interval
+		this.timerId = null
+		this.handler = handler
+		this.flush = this.flush.bind(this)
+	}
+
+	stop () {
+		clearInterval(this.timerId)
+		this.timerId = null
+	}
+
+	start () {
+		clearInterval(this.timerId)
+		this.timerId = setInterval(this.flush, this.interval)
+	}
+
+	async flush () {
+		this.stop()
+		try {
+			await this.handler()
+		} finally {
+			this.start()
+		}
+	}
+}
+
 class HomieDevice {
-	constructor (mqttClient, baseTopic, id, name) {
+	constructor (mqttClient, baseTopic, id, name, flushInterval = DEFAULT_FLUSH_INTERVAL) {
 		this.mqttClient = mqttClient
 		this.id = id
 		this.name = name
 		this.nodes = new Map()
 		this.baseTopic = `${baseTopic}/${id}`
+		this.setupCalled = false
+		this.flushTimer = new FlushTimer(flushInterval, this.flushChanges.bind(this))
 	}
 
-	addNode (id, name, type, properties) {
+	async addNode (id, name, type, properties) {
 		const node = new HomieNode(this.mqttClient, this.baseTopic, id, name, type, properties)
 		this.nodes.set(id, node)
-		return node
+		
+		if (this.setupCalled && this.mqttClient.connected) {
+			await node.setup()
+			await this.sendNodes()
+		}
 	}
 
 	getNode (id) {
@@ -31,14 +67,22 @@ class HomieDevice {
 		await this.setup()
 	}
 
+	async stop () {
+		await this.flushTimer.flush()
+		this.flushTimer.stop()
+		await this.publish('$state', 'disconnected')
+	}
+
 	async onConnected () {
 		await this.sendDeviceInfo()
-		await this.sendNodes()
 		await this.mqttClient.subscribe(`${this.baseTopic}/+/+/set`)
+		await this.flushTimer.flush()
 	}
 
 	async setup () {
+		this.setupCalled = true
 		this.mqttClient.on('reconnect', () => this.onConnected().catch(() => {}))
+		this.mqttClient.on('disconnect', () => this.flushTimer.stop())
 		this.mqttClient.on('message', this.handleMessage.bind(this))
 		if (this.mqttClient.connected) {
 			await this.onConnected()
@@ -53,14 +97,15 @@ class HomieDevice {
 		await this.publish('$state', 'ready')
 		await this.publish('$extensions', '')
 		for (const node of this.nodes.values()) await node.setup()
+		await this.sendNodes()
 	}
 
 	async sendNodes () {
-		const nodes = []
-		for (const [nodeId, node] of this.nodes.entries()) {
-			nodes.push(`${nodeId}${node.isRange ? '[]' : ''}`)
-		}
-		await this.publish('$nodes', nodes.join(','))
+		await this.publish('$nodes', Array.from(this.nodes.keys()).join(','))
+	}
+
+	async flushChanges () {
+		for (const node of this.nodes.values()) await node.flushChanges()		
 	}
 
 	async publish (topic, payload, retain = true) {
