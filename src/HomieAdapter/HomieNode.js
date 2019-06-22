@@ -8,7 +8,7 @@ class DeviceNode {
 
 		for (const [id, property] of Object.entries(properties)) this.addProperty(id, property)
 		this.setupCalled = false
-		this.handleMessage = this.handleMessage.bind(this)
+		this.handlePropertySet = this.handlePropertySet.bind(this)
 	}
 
 	async addProperty (id, attributes) {
@@ -16,16 +16,11 @@ class DeviceNode {
 			...attributes,
 			changed: false,
 		})
-	
+
 		if (this.setupCalled && this.mqttClient.connected) {
 			await this.setupProperty(id)
 			await this.sendProperties()
 		}
-	}
-
-	handlePropertySet (propertyId, message) {
-		const property = this.properties.get(propertyId)
-		if (property && property.onSet) property.onSet(message)
 	}
 
 	async setPropertyValue (id, value, flush = false) {
@@ -33,7 +28,15 @@ class DeviceNode {
 		property.value = value
 		property.changed = true
 
-		if (flush) await this.flushChanges()
+		if (flush) await this.flushProperty(id)
+	}
+
+	async handlePropertySet (propertyId, message) {
+		const property = this.properties.get(propertyId)
+		if (property) {
+			if (property && property.onSet) await property.onSet(message)
+			await this.flushProperty(propertyId)
+		}
 	}
 
 	async setup () {
@@ -69,6 +72,14 @@ class DeviceNode {
 				await this.publish(`${id}`, property.value, property.retained !== false)
 				property.changed = false
 			}
+		}
+	}
+
+	async flushProperty (id) {
+		const property = this.properties.get(id)
+		if (property.changed) {
+			await this.publish(`${id}`, property.value, property.retained !== false)
+			property.changed = false
 		}
 	}
 

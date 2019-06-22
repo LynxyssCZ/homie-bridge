@@ -44,7 +44,7 @@ class HomieDevice {
 	async addNode (id, name, type, properties) {
 		const node = new HomieNode(this.mqttClient, this.baseTopic, id, name, type, properties)
 		this.nodes.set(id, node)
-		
+
 		if (this.setupCalled && this.mqttClient.connected) {
 			await node.setup()
 			await this.sendNodes()
@@ -55,11 +55,11 @@ class HomieDevice {
 		return this.nodes.get(id)
 	}
 
-	handleMessage (topic, message) {
+	async handleMessage (topic, message) {
 		if (topic.startsWith(this.baseTopic) && topic.endsWith('/set')) {
 			const [nodeId, property] = topic.replace(this.baseTopic + '/', '').replace('/set', '').split('/')
 			const node = this.getNode(nodeId)
-			if (node) node.handlePropertySet(property, message)
+			if (node) await node.handlePropertySet(property, message)
 		}
 	}
 
@@ -81,14 +81,10 @@ class HomieDevice {
 
 	async setup () {
 		this.setupCalled = true
-		this.mqttClient.on('reconnect', () => this.onConnected().catch(() => {}))
-		this.mqttClient.on('disconnect', () => this.flushTimer.stop())
+		this.mqttClient.on('offline', () => this.flushTimer.stop())
 		this.mqttClient.on('message', this.handleMessage.bind(this))
-		if (this.mqttClient.connected) {
-			await this.onConnected()
-		} else {
-			this.mqttClient.once('connect', () => this.onConnected().catch(() => {}))
-		}
+		this.mqttClient.on('connect', () => this.onConnected().catch(() => {}))
+		if (this.mqttClient.connected) await this.onConnected()
 	}
 
 	async sendDeviceInfo () {
@@ -105,7 +101,7 @@ class HomieDevice {
 	}
 
 	async flushChanges () {
-		for (const node of this.nodes.values()) await node.flushChanges()		
+		for (const node of this.nodes.values()) await node.flushChanges()
 	}
 
 	async publish (topic, payload, retain = true) {

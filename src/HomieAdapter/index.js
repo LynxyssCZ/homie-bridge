@@ -61,7 +61,7 @@ class HomieAdapter {
 					await node.setPropertyValue(property, value)
 				}
 			}
-			if (this.isScanning) this.device.getNode('bridge').setPropertyValue('discovered', JSON.stringify(data))
+			if (this.isScanning) this.device.getNode('bridge').setPropertyValue('discovered', JSON.stringify(data), true)
 		}
 	}
 
