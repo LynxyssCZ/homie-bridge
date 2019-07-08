@@ -46,8 +46,8 @@ class HomieDevice {
 		this.nodes.set(id, node)
 
 		if (this.setupCalled && this.mqttClient.connected) {
-			await node.setup()
 			await this.sendNodes()
+			await node.setup()
 		}
 	}
 
@@ -92,8 +92,8 @@ class HomieDevice {
 		await this.publish('$name', this.name)
 		await this.publish('$state', 'ready')
 		await this.publish('$extensions', '')
-		for (const node of this.nodes.values()) await node.setup()
 		await this.sendNodes()
+		for (const node of this.nodes.values()) await node.setup()
 	}
 
 	async sendNodes () {
