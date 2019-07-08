@@ -48,7 +48,7 @@ class DeviceNode {
 	}
 
 	async sendProperties () {
-		await this.publish('properties', Array.from(this.properties.keys()).join(','))
+		await this.publish('$properties', Array.from(this.properties.keys()).join(','))
 	}
 
 	async setupProperty (id) {
